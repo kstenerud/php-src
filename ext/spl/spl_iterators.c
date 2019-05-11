@@ -1521,6 +1521,24 @@ static spl_dual_it_object* spl_dual_it_construct(INTERNAL_FUNCTION_PARAMETERS, z
 			cfi->object = cfi->fcc.object;
 			if (cfi->object) GC_ADDREF(cfi->object);
 			intern->u.cbfilter = cfi;
+
+			ce = Z_OBJCE_P(zobject);
+			if (!instanceof_function(ce, zend_ce_iterator)) {
+				if (instanceof_function(ce, zend_ce_aggregate)) {
+					zend_call_method_with_0_params(Z_OBJ_P(zobject), ce, &ce->iterator_funcs_ptr->zf_new_iterator, "getiterator", &retval);
+					if (EG(exception)) {
+						zval_ptr_dtor(&retval);
+						return NULL;
+					}
+					if (Z_TYPE(retval) != IS_OBJECT || !instanceof_function(Z_OBJCE(retval), zend_ce_traversable)) {
+						zend_throw_exception_ex(spl_ce_LogicException, 0, "%s::getIterator() must return an object that implements Traversable", ZSTR_VAL(ce->name));
+						return NULL;
+					}
+					zobject = &retval;
+					ce = Z_OBJCE_P(zobject);
+					inc_refcount = 0;
+				}
+			}
 			break;
 		}
 		default:
@@ -1553,7 +1571,7 @@ SPL_METHOD(FilterIterator, __construct)
    Create an Iterator from another iterator */
 SPL_METHOD(CallbackFilterIterator, __construct)
 {
-	spl_dual_it_construct(INTERNAL_FUNCTION_PARAM_PASSTHRU, spl_ce_CallbackFilterIterator, zend_ce_iterator, DIT_CallbackFilterIterator);
+	spl_dual_it_construct(INTERNAL_FUNCTION_PARAM_PASSTHRU, spl_ce_CallbackFilterIterator, zend_ce_traversable, DIT_CallbackFilterIterator);
 } /* }}} */
 
 /* {{{ proto Iterator FilterIterator::getInnerIterator()
@@ -2316,7 +2334,7 @@ static const zend_function_entry spl_funcs_FilterIterator[] = {
 };
 
 ZEND_BEGIN_ARG_INFO(arginfo_callback_filter_it___construct, 0)
-	ZEND_ARG_OBJ_INFO(0, iterator, Iterator, 0)
+	ZEND_ARG_OBJ_INFO(0, iterator, Traversable, 0)
 	ZEND_ARG_INFO(0, callback)
 ZEND_END_ARG_INFO();
 
